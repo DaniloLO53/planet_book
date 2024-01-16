@@ -4,6 +4,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validationSchema } from './config/schemas';
 import { config } from './config';
+import { MikroOrmModule } from '@mikro-orm/nestjs';
+import { MikroOrmConfig } from './database/mikro_orm.config';
 
 @Module({
   imports: [
@@ -11,6 +13,10 @@ import { config } from './config';
       isGlobal: true,
       validationSchema,
       load: [config],
+    }),
+    MikroOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useClass: MikroOrmConfig,
     }),
   ],
   controllers: [AppController],
