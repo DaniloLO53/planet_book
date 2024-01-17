@@ -11,6 +11,8 @@ import {
 import { validate } from 'class-validator';
 import { isNull, isUndefined } from './utils/validation.util';
 import slugify from 'slugify';
+import { v4 } from 'uuid';
+import { IMessage } from './interfaces/message.interface';
 
 @Injectable()
 export class CommonService {
@@ -18,6 +20,10 @@ export class CommonService {
 
   constructor() {
     this.loggerService = new Logger(CommonService.name);
+  }
+
+  public generateMessage(message: string): IMessage {
+    return { id: v4(), message };
   }
 
   public formatName(title: string): string {
