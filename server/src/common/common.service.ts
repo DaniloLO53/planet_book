@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { validate } from 'class-validator';
 import { isNull, isUndefined } from './utils/validation.util';
+import slugify from 'slugify';
 
 @Injectable()
 export class CommonService {
@@ -17,6 +18,18 @@ export class CommonService {
 
   constructor() {
     this.loggerService = new Logger(CommonService.name);
+  }
+
+  public formatName(title: string): string {
+    return title
+      .trim()
+      .replace(/\n/g, ' ')
+      .replace(/\s\s+/g, ' ')
+      .replace(/\w\S*/g, (w) => w.replace(/^\w/, (l) => l.toUpperCase()));
+  }
+
+  public generatePointSlug(str: string): string {
+    return slugify(str, { lower: true, replacement: '.', remove: /['_\.\-]/g });
   }
 
   public async throwDuplicateError<T>(promise: Promise<T>, message?: string) {
