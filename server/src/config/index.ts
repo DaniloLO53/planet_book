@@ -3,6 +3,7 @@ import { defineConfig } from '@mikro-orm/postgresql';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { IConfig } from './interfaces/config.interface';
+import { redisUrlParser } from './utils/redis-url-parser.util';
 
 const RADIX = 10;
 
@@ -55,5 +56,6 @@ export function config(): IConfig {
       loadStrategy: LoadStrategy.JOINED,
       allowGlobalContext: true,
     }),
+    redis: redisUrlParser(process.env.REDIS_URL),
   };
 }

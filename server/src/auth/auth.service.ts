@@ -1,10 +1,11 @@
-import { InjectRepository } from '@mikro-orm/nestjs';
-import { EntityRepository } from '@mikro-orm/postgresql';
 import {
   BadRequestException,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { IMessage } from 'src/common/interfaces/message.interface';
 import { TokenTypeEnum } from 'src/jwt/enums/tokenType.enum';
 import { UserEntity } from 'src/users/entities/user.entity';
@@ -14,7 +15,6 @@ import { JwtService } from '../jwt/jwt.service';
 import { MailerService } from '../mailer/mailer.service';
 import { UsersService } from '../users/users.service';
 import { SignUpDto } from './dtos/sign-up.dto';
-import { BlacklistedTokenEntity } from './entities/blacklisted-token.entity';
 import { SLUG_REGEX } from '../common/consts/regex.const';
 import { isEmail } from 'class-validator';
 import dayjs from 'dayjs';
@@ -31,8 +31,8 @@ import { ChangePasswordDto } from './dtos/change-password.dto';
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(BlacklistedTokenEntity)
-    private readonly blacklistedTokensRepository: EntityRepository<BlacklistedTokenEntity>,
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
     private readonly commonService: CommonService,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
@@ -84,26 +84,29 @@ export class AuthService {
   }
 
   public async logout(refreshToken: string): Promise<IMessage> {
-    const { id, tokenId } = await this.jwtService.verifyToken<IRefreshToken>(
-      refreshToken,
-      TokenTypeEnum.REFRESH,
-    );
-    await this.blacklistToken(id, tokenId);
+    const { id, tokenId, exp } =
+      await this.jwtService.verifyToken<IRefreshToken>(
+        refreshToken,
+        TokenTypeEnum.REFRESH,
+      );
+    await this.blacklistToken(id, tokenId, exp);
     return this.commonService.generateMessage('Logout successful');
   }
 
-  // creates a new blacklisted token in the database with the
-  // ID of the refresh token that was removed with the logout
-  private async blacklistToken(userId: number, tokenId: string): Promise<void> {
-    const blacklistedToken = this.blacklistedTokensRepository.create({
-      user: userId,
-      tokenId,
-    });
-    await this.commonService.saveEntity(
-      this.blacklistedTokensRepository,
-      blacklistedToken,
-      true,
-    );
+  // checks if a blacklist token given a redis key exist on cache
+  private async blacklistToken(
+    userId: number,
+    tokenId: string,
+    exp: number,
+  ): Promise<void> {
+    const now = dayjs().unix();
+    const ttl = (exp - now) * 1000;
+
+    if (ttl > 0) {
+      await this.commonService.throwInternalError(
+        this.cacheManager.set(`blacklist:${userId}:${tokenId}`, now, ttl),
+      );
+    }
   }
 
   public async refreshTokenAccess(
@@ -125,18 +128,16 @@ export class AuthService {
     return { user, accessToken, refreshToken: newRefreshToken };
   }
 
-  // checks if a token given the ID of the user and ID of token exists on the database
   private async checkIfTokenIsBlacklisted(
     userId: number,
     tokenId: string,
   ): Promise<void> {
-    const count = await this.blacklistedTokensRepository.count({
-      user: userId,
-      tokenId,
-    });
+    const time = await this.cacheManager.get<number>(
+      `blacklist:${userId}:${tokenId}`,
+    );
 
-    if (count > 0) {
-      throw new UnauthorizedException('Token is invalid');
+    if (!isUndefined(time) && !isNull(time)) {
+      throw new UnauthorizedException('Invalid token');
     }
   }
 
