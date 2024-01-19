@@ -1,19 +1,11 @@
-import { IsEmail, IsString, Length, Matches } from 'class-validator';
-import { NAME_REGEX } from '../../common/consts/regex.const';
-import { PasswordsDto } from './passwords.dto';
+import { IsString, Length, MinLength } from 'class-validator';
 
-export abstract class SignUpDto extends PasswordsDto {
+export abstract class SignInDto {
   @IsString()
-  @Length(3, 100, {
-    message: 'Name has to be between 3 and 50 characters.',
-  })
-  @Matches(NAME_REGEX, {
-    message: 'Name can only contain letters, dtos, numbers and spaces.',
-  })
-  public name!: string;
+  @Length(3, 255)
+  public emailOrUsername: string;
 
   @IsString()
-  @IsEmail()
-  @Length(5, 255)
-  public email!: string;
+  @MinLength(1)
+  public password: string;
 }
