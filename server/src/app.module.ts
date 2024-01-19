@@ -9,6 +9,7 @@ import { MikroOrmConfig } from './database/mikro_orm.config';
 import { CommonModule } from './common/common.module';
 import { UsersModule } from './users/users.module';
 import { MailerModule } from './mailer/mailer.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { MailerModule } from './mailer/mailer.module';
     CommonModule,
     UsersModule,
     MailerModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
