@@ -12,6 +12,8 @@ import { UsersModule } from './users/users.module';
 import { MailerModule } from './mailer/mailer.module';
 import { AuthModule } from './auth/auth.module';
 import { CacheConfig } from './config/cache.config';
+import { APP_GUARD } from '@nestjs/core';
+import { AuthGuard } from './guards/canActivate.guard';
 
 @Module({
   imports: [
@@ -35,6 +37,12 @@ import { CacheConfig } from './config/cache.config';
     AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
+  ],
 })
 export class AppModule {}
