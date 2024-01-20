@@ -12,6 +12,9 @@ import { UserEntity } from './entities/user.entity';
 import { hash, compare } from 'bcrypt';
 import { UpdateUserDto } from './dtos/update-user.dto';
 import { ChangeEmailDto } from './dtos/change-email.dto';
+import { PasswordDto } from './dtos/password.dto';
+import { isInt } from 'class-validator';
+import { SLUG_REGEX } from 'src/common/consts/regex.const';
 
 @Injectable()
 export class UsersService {
@@ -191,6 +194,21 @@ export class UsersService {
   }
 
   // ...
+  public async confirmEmail(
+    userId: number,
+    version: number,
+  ): Promise<UserEntity> {
+    const user = await this.findOneByCredentials(userId, version);
+
+    if (user.confirmed) {
+      throw new BadRequestException('Email already confirmed');
+    }
+
+    user.confirmed = true;
+    user.credentials.updateVersion();
+    await this.commonService.saveEntity(this.usersRepository, user);
+    return user;
+  }
 
   private async checkEmailUniqueness(email: string): Promise<void> {
     const count = await this.usersRepository.count({ email });
@@ -219,5 +237,36 @@ export class UsersService {
     }
 
     return pointSlug;
+  }
+
+  public async delete(userId: number, dto: PasswordDto): Promise<UserEntity> {
+    const user = await this.findOneById(userId);
+
+    if (!(await compare(dto.password, user.password))) {
+      throw new BadRequestException('Wrong password');
+    }
+
+    await this.commonService.removeEntity(this.usersRepository, user);
+    return user;
+  }
+
+  public async findOneByIdOrUsername(
+    idOrUsername: string,
+  ): Promise<UserEntity> {
+    const parsedValue = parseInt(idOrUsername, 10);
+
+    if (!isNaN(parsedValue) && parsedValue > 0 && isInt(parsedValue)) {
+      return this.findOneById(parsedValue);
+    }
+
+    if (
+      idOrUsername.length < 3 ||
+      idOrUsername.length > 106 ||
+      !SLUG_REGEX.test(idOrUsername)
+    ) {
+      throw new BadRequestException('Invalid username');
+    }
+
+    return this.findOneByUsername(idOrUsername);
   }
 }

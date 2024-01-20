@@ -27,6 +27,7 @@ import { isNull, isUndefined } from 'src/common/utils/validation.util';
 import { IEmailToken } from 'src/jwt/interfaces/email-token.interface';
 import { ResetPasswordDto } from './dtos/reset-password.dto';
 import { ChangePasswordDto } from './dtos/change-password.dto';
+import { ConfirmEmailDto } from './dtos/confirm-email.dto';
 
 @Injectable()
 export class AuthService {
@@ -139,6 +140,21 @@ export class AuthService {
     if (!isUndefined(time) && !isNull(time)) {
       throw new UnauthorizedException('Invalid token');
     }
+  }
+
+  public async confirmEmail(
+    dto: ConfirmEmailDto,
+    domain?: string,
+  ): Promise<IAuthResult> {
+    const { confirmationToken } = dto;
+    const { id, version } = await this.jwtService.verifyToken<IEmailToken>(
+      confirmationToken,
+      TokenTypeEnum.CONFIRMATION,
+    );
+    const user = await this.usersService.confirmEmail(id, version);
+    const [accessToken, refreshToken] =
+      await this.jwtService.generateAuthTokens(user, domain);
+    return { user, accessToken, refreshToken };
   }
 
   public async singIn(dto: SignInDto, domain?: string): Promise<IAuthResult> {
@@ -269,5 +285,22 @@ export class AuthService {
         tokenId,
       ),
     ]);
+  }
+
+  public async updatePassword(
+    userId: number,
+    dto: ChangePasswordDto,
+    domain?: string,
+  ): Promise<IAuthResult> {
+    const { password1, password2, password } = dto;
+    this.comparePasswords(password1, password2);
+    const user = await this.usersService.updatePassword(
+      userId,
+      password1,
+      password,
+    );
+    const [accessToken, refreshToken] =
+      await this.jwtService.generateAuthTokens(user, domain);
+    return { user, accessToken, refreshToken };
   }
 }
