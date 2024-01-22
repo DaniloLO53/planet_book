@@ -30,6 +30,7 @@ export class UsersService {
   }
 
   async health() {
+    console.log('hey')
     return await this.prisma.user.count({
       select: {
         email: true

@@ -7,6 +7,6 @@ export class AuthController {
 
   @Get('health')
   health() {
-    return this.health();
+    return this.authService.health();
   }
 }
