@@ -7,14 +7,13 @@ import {
 import { randomBytes, scrypt } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { SignInDto } from './dtos/signIn.dto';
-import { JwtService } from '@nestjs/jwt';
 import { SignUpDto } from './dtos/signUp.dto';
+import * as jwt from 'jsonwebtoken';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
-    private jwtService: JwtService,
   ) {}
 
   async signUp(signUpDto: SignUpDto) {
@@ -34,11 +33,13 @@ export class AuthService {
 
     const [hashed, salt] = await this.saltAndHash(password);
 
-    return await this.usersService.createUser({
+    const newUser = await this.usersService.createUser({
       username,
       email,
-      password: `${hashed}.${salt}`
+      password: `${hashed}.${salt}`,
     });
+
+    return await this.generateConfirmationToken(newUser);
   }
 
   async signIn(signInDto: SignInDto) {
@@ -56,9 +57,31 @@ export class AuthService {
 
     const { password: storedPassword, ...sanitizedUser } = user;
 
-    return {
-      accessToken: await this.jwtService.signAsync(sanitizedUser),
-    };
+    // return {
+    //   accessToken: await this.jwtService.signAsync(sanitizedUser),
+    // };
+  }
+
+  private async generateConfirmationToken(
+    user: Omit<SignUpDto, 'confirmPassword'> & { id: number },
+  ) {
+    return new Promise((resolve, reject) => {
+      jwt.sign(
+        user,
+        process.env.JWT_CONFIRMATION_SECRET!,
+        {
+          expiresIn: `${process.env.JWT_CONFIRMATION_TIME!}s`,
+          algorithm: 'HS256'
+        },
+        (err, token) => {
+          if (err) {
+            return reject(err);
+          }
+
+          resolve(token);
+        }
+        );
+    });
   }
 
   private async comparePasswords(
