@@ -9,12 +9,11 @@ import { UsersService } from '../users/users.service';
 import { SignInDto } from './dtos/signIn.dto';
 import { SignUpDto } from './dtos/signUp.dto';
 import * as jwt from 'jsonwebtoken';
+import { IUser } from '../users/interfaces/user.interface';
 
 @Injectable()
 export class AuthService {
-  constructor(
-    private readonly usersService: UsersService,
-  ) {}
+  constructor(private readonly usersService: UsersService) {}
 
   async signUp(signUpDto: SignUpDto) {
     const { email, username, password, confirmPassword } = signUpDto;
@@ -38,11 +37,12 @@ export class AuthService {
       email,
       password: `${hashed}.${salt}`,
     });
+    const { password: storedPassword, confirmed, ...sanitizedUser } = newUser;
 
-    return await this.generateConfirmationToken(newUser);
+    return await this.generateConfirmationToken(sanitizedUser);
   }
 
-  async signIn(signInDto: SignInDto) {
+  async signIn(signInDto: SignInDto): Promise<{ user: IUser, accessToken: string, refreshToken: string }> {
     const { email, password } = signInDto;
 
     const user = await this.usersService.findUserByEmail(email);
@@ -50,28 +50,31 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
+    if (!user.confirmed) {
+      // ###### TODO
+    }
+
+
     const passwordIsValid = this.comparePasswords(password, user.password);
     if (!passwordIsValid) {
       throw new UnauthorizedException();
     }
 
-    const { password: storedPassword, ...sanitizedUser } = user;
+    const { password: storedPassword, confirmed, ...sanitizedUser } = user;
+    const accessToken = await this.generateAccessToken(sanitizedUser) as string;
+    const refreshToken = await this.generateRefreshToken(sanitizedUser) as string;
 
-    // return {
-    //   accessToken: await this.jwtService.signAsync(sanitizedUser),
-    // };
+    return { user: sanitizedUser, accessToken, refreshToken };
   }
 
-  private async generateConfirmationToken(
-    user: Omit<SignUpDto, 'confirmPassword'> & { id: number },
-  ) {
+  private async generateAccessToken(user: IUser) {
     return new Promise((resolve, reject) => {
       jwt.sign(
         user,
-        process.env.JWT_CONFIRMATION_SECRET!,
+        process.env.JWT_ACCESS_SECRET!,
         {
-          expiresIn: `${process.env.JWT_CONFIRMATION_TIME!}s`,
-          algorithm: 'HS256'
+          expiresIn: `${process.env.JWT_ACCESS_TIME!}s`,
+          algorithm: 'HS256',
         },
         (err, token) => {
           if (err) {
@@ -79,8 +82,63 @@ export class AuthService {
           }
 
           resolve(token);
+        },
+      );
+    });
+  }
+
+  private async generateRefreshToken(user: IUser) {
+    return new Promise((resolve, reject) => {
+      jwt.sign(
+        user,
+        process.env.JWT_REFRESH_SECRET!,
+        {
+          expiresIn: `${process.env.JWT_REFRESH_TIME!}s`,
+          algorithm: 'HS256',
+        },
+        (err, token) => {
+          if (err) {
+            return reject(err);
+          }
+
+          resolve(token);
+        },
+      );
+    });
+  }
+
+  private async generateConfirmationToken(user: IUser) {
+    return new Promise((resolve, reject) => {
+      jwt.sign(
+        user,
+        process.env.JWT_CONFIRMATION_SECRET!,
+        {
+          expiresIn: `${process.env.JWT_CONFIRMATION_TIME!}s`,
+          algorithm: 'HS256',
+        },
+        (err, token) => {
+          if (err) {
+            return reject(err);
+          }
+
+          resolve(token);
+        },
+      );
+    });
+  }
+
+  async verifyTokenAsync<T>(
+    token: string,
+    secret: string,
+    options: jwt.VerifyOptions,
+  ) {
+    return new Promise((resolve, rejects) => {
+      jwt.verify(token, secret, options, (err, payload) => {
+        if (err) {
+          return rejects(err);
         }
-        );
+        resolve(payload);
+      });
     });
   }
 

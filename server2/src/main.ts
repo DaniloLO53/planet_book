@@ -7,7 +7,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const PORT =  parseInt(process.env.PORT!, 10);
 
-  app.use(cookieParser());
+  app.use(cookieParser(process.env.COOKIE_SECRET!));
   app.useGlobalPipes(new ValidationPipe());
 
   await app.listen(PORT, () => console.log(`Listening on port ${PORT}`));

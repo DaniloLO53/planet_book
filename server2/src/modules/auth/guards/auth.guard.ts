@@ -7,11 +7,14 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from 'src/decorators/isPublic.decorator';
+import { AuthService } from '../auth.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
+    private readonly authService: AuthService,
+
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -19,7 +22,6 @@ export class AuthGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    console.log({ isPublic })
     if (isPublic) {
       return true;
     }
@@ -30,10 +32,12 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException();
     }
     try {
-      // const payload = await this.jwtService.verifyAsync(token, {
-      //   secret: process.env.JWT_ACCESS_SECRET,
-      // });
-      // request['user'] = payload;
+      const payload = await this.authService.verifyTokenAsync(
+        token,
+        process.env.JWT_ACCESS_SECRET!,
+        { maxAge: process.env.JWT_ACCESS_TIME! }
+      ) as unknown as any;
+      request['user'] = payload.id;
     } catch {
       throw new UnauthorizedException();
     }
