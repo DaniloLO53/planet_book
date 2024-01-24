@@ -2,10 +2,14 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { scrypt } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { SignInDto } from './dtos/signIn.dto';
+import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private jwtService: JwtService,
+  ) {}
 
   async signIn(signInDto: SignInDto) {
     const { email, password } = signInDto;
@@ -22,7 +26,9 @@ export class AuthService {
 
     const { password: storedPassword, ...sanitizedUser } = user;
 
-    return sanitizedUser;
+    return {
+      accessToken: await this.jwtService.signAsync(sanitizedUser)
+    };
   }
 
   private async comparePasswords(password: string, storedPassword: string) {
@@ -35,8 +41,8 @@ export class AuthService {
         }
 
         resolve(key.toString('hex') === hashed);
-      })
-    })
+      });
+    });
   }
 
   async health() {
